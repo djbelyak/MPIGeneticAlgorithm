@@ -5,19 +5,111 @@
  *      Author: djbelyak
  */
 
-// Подключение необходимых заголовков
+//===========================================
+/**
+  * Блок объявления заголовков
+  */
+//===========================================
+
 #include <stdio.h>
-#include <math.h>
-// Подключение заголовочного файла MPI
+#include <iostream>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <omp.h>
 #include "mpi.h"
 
-// Функция для промежуточных вычислений
-double f(double a)
+using namespace std;
+//===========================================
+/**
+  * Блок объявления фуникций и структур
+  */
+//===========================================
+
+/**
+ * Вещественное случайное число в диапазоне [0,1) (source)
+ */
+double frand()
 {
-    return (4.0 / (1.0+ a*a));
+	return double(rand())/RAND_MAX;
 }
 
-// Главная функция программы
+/**
+ * Структура для представления двоичного генома (source)
+ */
+struct genom
+{
+	// Геном
+	double* data;
+	// Длина генома
+	int len;
+	genom() { data = 0; }
+	~genom() { if( data ) delete[] data; }
+};
+
+/**
+ * Целевая функция (source)
+ */
+double eval(genom& x)
+{
+	double sum = 0;
+	for( int i=0; i<x.len; i++ )
+		sum += x.data[i]*x.data[i];
+	return sum/x.len;
+}
+
+/**
+ * Создание новой особи со случайным геномом (source)
+ */
+void create(genom& A, int l)
+{
+	A.data = new double[l];
+	A.len = l;
+	for( int i=0; i<l; i++ )
+		// случайный выбор гена
+		A.data[i] = 200*frand()-100;
+}
+
+/**
+ * Копирование генома одного индивида (для отбора) (source)
+ */
+void copy(genom& A, genom& B) // копирование генома одного индивида (для отбора)
+{
+	for( int i=0; i<A.len; i++ )
+		B.data[i] = A.data[i];
+}
+
+/**
+ * Скрещивание двух индивидов (одноточечное) (source)
+ */
+void crossover(genom& A, genom& B)
+{
+	int n = A.len;
+	//Точка скрещивания
+	int k = rand()%(n-1);
+	for( int i=k+1; i<n; i++ )
+		swap(A.data[i],B.data[i]);
+}
+
+/**
+ * Мутация особи (source)
+ */
+void mutate(genom& A)
+{
+	//Вероятность мутации одного гена
+	const double pmutate = 0.1;
+	//Степень мутации
+    double dx = 0.1;
+	for( int i=0; i<A.len; i++ )
+		if( frand()<pmutate )
+			//Мутация гена
+			A.data[i] += dx*(2*frand()-1);
+}
+
+
+/**
+ * Главная функция программы (wiki)
+ */
 int main(int argc, char **argv)
 {
 	//===========================================
@@ -48,21 +140,11 @@ int main(int argc, char **argv)
     int n;
     //Итератор
     int i;
+
     //===========================================
     // Служебные переменные вычисления
     //===========================================
-    //Эталонное значение Пи
-    double PI25DT = 3.141592653589793238462643;
-    //Вычисленная одним процессом часть числа Пи
-    double mypi;
-    //Суммарное значение Пи, вычисленное всем процессами
-    double pi;
-    //Ширина апроксимирующего прямоугольника
-    double h;
-    //Сумма высот апроксимирующих прямоугольников
-    double sum;
-    //Рассчетная координата Х для апроксимирующего прямоугольника
-    double x;
+
 
     //===========================================
     /**
@@ -84,49 +166,6 @@ int main(int argc, char **argv)
     fprintf(stdout, "Process %d of %d is on %s\n", myid,numprocs,processor_name);
     fflush(stdout);
 
-    while(!done)
-    {
-        // количество интервалов
-        if(myid==0)
-        {
-            fprintf(stdout, "Enter the number of intervals: (0 quits) ");
-            fflush(stdout);
-            if(scanf("%d",&n) != 1)
-            {
-                fprintf(stdout, "No number entered; quitting\n");
-                n = 0;
-            }
-            startwtime = MPI_Wtime();
-        }
-        // Рассылка количества интервалов всем процессам (в том числе и себе)
-        MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
-        if(n==0)
-            done = 1;
-        else
-        {
-            h = 1.0 / (double) n;
-            sum = 0.0;
-            // Обсчитывание точки, закрепленной за процессом
-            for(i = myid + 1 ; (i <= n) ; i += numprocs)
-            {
-                x = h * ((double)i - 0.5);
-                sum += f(x);
-            }
-            mypi = h * sum;
-
-            // Сброс результатов со всех процессов и сложение
-            MPI_Reduce(&mypi, &pi, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-
-            // Если это главный процесс, вывод полученного результата
-            if(myid==0)
-            {
-                printf("PI is approximately %.16f, Error is %.16f\n", pi, fabs(pi - PI25DT));
-                endwtime = MPI_Wtime();
-                printf("wall clock time = %f\n", endwtime-startwtime);
-                fflush(stdout);
-            }
-        }
-    }
 
     // Освобождение подсистемы MPI
     MPI_Finalize();
