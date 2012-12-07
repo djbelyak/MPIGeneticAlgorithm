@@ -287,8 +287,16 @@ int main(int argc, char **argv)
     			best[extIter] = f;
     	}
     	average[extIter] /= size/fraction;
-    }
 
+    	//12. (m) Отправка результатов
+    	position=0;
+   	    for (int i=0; i<size/(fraction); i++)
+    	    	MPI_Pack(Exchange[i].data,Exchange[i].len, MPI_DOUBLE,
+    	    		buffer, bufSize, &position, MPI_COMM_WORLD);
+    }
+    MPI_Scatter (buffer, position, MPI_PACKED, ExchangeBuffer, position/p,
+        	    		MPI_PACKED,	0, MPI_COMM_WORLD);
+    //13. (а) Получение части субпопуляции
     }
     //Освобождение подсистемы MPI
     MPI_Finalize();
