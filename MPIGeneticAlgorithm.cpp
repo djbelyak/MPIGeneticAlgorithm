@@ -276,7 +276,17 @@ int main(int argc, char **argv)
     	}
     	//10. (m) Перемешивание
     	shuffle(Exchange, (size/fraction));
-
+    	//11. (m) Статистика
+    	average[extIter] = 0;
+    	best[extIter] = eval(Exchange[0]);
+    	for( int i=0; i<size/fraction; i++ )
+    	{
+    		double f = eval(Exchange[i]);
+    		average[extIter] += f;
+    		if( f<best[extIter] )
+    			best[extIter] = f;
+    	}
+    	average[extIter] /= size/fraction;
     }
 
     }
