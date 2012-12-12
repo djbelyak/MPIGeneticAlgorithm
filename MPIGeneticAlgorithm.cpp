@@ -257,16 +257,16 @@ int main(int argc, char **argv)
     MPI_Pack_size (n*size/(p*fraction), MPI_DOUBLE,
     		MPI_COMM_WORLD, &bufSize);
     buffer = new char[bufSize];
-    printf ("bufSize: %d\n", bufSize);
     for (int i=0; i<size/(p*fraction); i++)
     	MPI_Pack(SubPopulation[i].data,SubPopulation[i].len, MPI_DOUBLE,
     		buffer, bufSize, &position, MPI_COMM_WORLD);
-    MPI_Gather (buffer, position, MPI_PACKED, ExchangeBuffer, p*position,
+    MPI_Gather (buffer, position, MPI_PACKED, ExchangeBuffer, position,
     		MPI_PACKED,	0, MPI_COMM_WORLD);
 
     //9. (m) Сбор буфера
     if (myid == 0)
   	{
+
     	position = 0;
     	for (int i=0; i<size/(fraction); i++)
     	{
@@ -288,17 +288,42 @@ int main(int argc, char **argv)
     	}
     	average[extIter] /= size/fraction;
 
+    	cout << extIter << " avg =  " << average[extIter] << "; best =  " << best[extIter] << endl;
     	//12. (m) Отправка результатов
     	position=0;
+    	MPI_Pack_size (n*size/(fraction), MPI_DOUBLE,
+    	    		MPI_COMM_WORLD, &bufSize);
+    	delete [] buffer;
+    	buffer = new char[bufSize];
    	    for (int i=0; i<size/(fraction); i++)
     	    	MPI_Pack(Exchange[i].data,Exchange[i].len, MPI_DOUBLE,
     	    		buffer, bufSize, &position, MPI_COMM_WORLD);
     }
-    MPI_Scatter (buffer, position, MPI_PACKED, ExchangeBuffer, position/p,
-        	    		MPI_PACKED,	0, MPI_COMM_WORLD);
+    printf("Ок\n");
+    MPI_Scatter (ExchangeBuffer, position/p,MPI_PACKED,buffer, position, MPI_PACKED,
+    		0, MPI_COMM_WORLD);
     //13. (а) Получение части субпопуляции
+    position = 0;
+    for (int i=0; i<size/(p*fraction); i++)
+    {
+    	create(SubPopulation[i], n);
+    	MPI_Unpack(ExchangeBuffer, sizeof(double)*n*size/(p*fraction),
+        	    	&position,SubPopulation[i].data, n, MPI_DOUBLE, MPI_COMM_WORLD);
     }
+    }
+
+    //Вывод статистики
+    int step = tmax / 100;
+    for(int t=0; t<tmax/dt; t++)
+    		cout << t << " avg =  " << average[t] << "; best =  " << best[t] << endl;
+
     //Освобождение подсистемы MPI
+
+    delete [] SubPopulation;
+    delete [] average;
+    delete [] best;
     MPI_Finalize();
     return 0;
+    //TODO Граничные условия
+    //TODO Зависимость по времени
 }
