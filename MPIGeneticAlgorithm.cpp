@@ -204,13 +204,18 @@ int main(int argc, char **argv)
     //Получить размер коммуникатора MPI_COMM_WORLD
     //(общее число процессов в рамках задачи)
     MPI_Comm_size(MPI_COMM_WORLD,&p);
+    float i;
+    if (modf(log((double)p)/log(2.0),&i)>0)
+    	return 1;
     //Получить номер текущего процесса в рамках
     //коммуникатора MPI_COMM_WORLD
     MPI_Comm_rank(MPI_COMM_WORLD,&myid);
     MPI_Get_processor_name(processor_name,&namelen);
 
+    //Вычислим размер субпопуляции для процессора
+    int mySize = size/p + (myid==(p-1))*(size%p);
     //Вывод номера потока в общем пуле
-    fprintf(stdout, "Process %d of %d is on %s\n", myid, p, processor_name);
+    fprintf(stdout, "Process %d of %d is on %s. My Size %d.\n", myid, p, processor_name, mySize);
     fflush(stdout);
 
 
@@ -221,32 +226,32 @@ int main(int argc, char **argv)
     //===========================================
 
     //1. (a) Генерация субпопуляции (размер - size/p)
-    genom* SubPopulation = new genom[size/p];
-    for (int i=0; i<size/p; i++ )
+    genom* SubPopulation = new genom[mySize];
+    for (int i=0; i<mySize; i++ )
     	create(SubPopulation[i], n);
 
     for (int extIter=0; extIter<tmax/dt; extIter++) {
     for (int intIter=0; intIter<dt; intIter++)
     {
     	//2. (a) Отбор
-    	for (int i=0; i<size/(2*p); i++)
+    	for (int i=0; i<mySize/2; i++)
     		if (frand()<pselect)
     			select(SubPopulation[2*i], SubPopulation[2*i+1]);
 
     	//3. (a) Перемешивание
-    	shuffle(SubPopulation, size/p);
+    	shuffle(SubPopulation, mySize);
 
     	//4. (a) Скрещивание
-    	for(int i=0; i<size/(2*p); i++)
+    	for(int i=0; i<mySize/2; i++)
     		if(frand()<pcross)
     			crossover(SubPopulation[2*i],SubPopulation[2*i+1]);
 
     	//5. (a) Мутация
-    	for(int i=0; i<size/p; i++)
+    	for(int i=0; i<mySize; i++)
     		mutate(SubPopulation[i]);
 
     	//6. (a) Перемешивание
-    	shuffle(SubPopulation, size/p);
+    	shuffle(SubPopulation, mySize);
     	//7. (a) Goto 2 dt раз
     }
 
@@ -254,12 +259,14 @@ int main(int argc, char **argv)
     char* buffer;
     int position=0;
     int bufSize;
-    MPI_Pack_size (n*size/(p*fraction), MPI_DOUBLE,
+    MPI_Pack_size (n*mySize/fraction, MPI_DOUBLE,
     		MPI_COMM_WORLD, &bufSize);
     buffer = new char[bufSize];
-    for (int i=0; i<size/(p*fraction); i++)
+    for (int i=0; i<mySize/fraction; i++)
     	MPI_Pack(SubPopulation[i].data,SubPopulation[i].len, MPI_DOUBLE,
     		buffer, bufSize, &position, MPI_COMM_WORLD);
+
+
     MPI_Gather (buffer, position, MPI_PACKED, ExchangeBuffer, position,
     		MPI_PACKED,	0, MPI_COMM_WORLD);
 
@@ -299,15 +306,14 @@ int main(int argc, char **argv)
     	    	MPI_Pack(Exchange[i].data,Exchange[i].len, MPI_DOUBLE,
     	    		buffer, bufSize, &position, MPI_COMM_WORLD);
     }
-    printf("Ок\n");
-    MPI_Scatter (ExchangeBuffer, position/p,MPI_PACKED,buffer, position, MPI_PACKED,
+    MPI_Scatter (ExchangeBuffer, sizeof(double)*n*mySize/fraction,MPI_PACKED,buffer, position, MPI_PACKED,
     		0, MPI_COMM_WORLD);
     //13. (а) Получение части субпопуляции
     position = 0;
-    for (int i=0; i<size/(p*fraction); i++)
+    for (int i=0; i<mySize/fraction; i++)
     {
     	create(SubPopulation[i], n);
-    	MPI_Unpack(ExchangeBuffer, sizeof(double)*n*size/(p*fraction),
+    	MPI_Unpack(ExchangeBuffer, sizeof(double)*n*mySize/fraction,
         	    	&position,SubPopulation[i].data, n, MPI_DOUBLE, MPI_COMM_WORLD);
     }
     }
