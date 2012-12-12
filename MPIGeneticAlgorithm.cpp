@@ -225,6 +225,8 @@ int main(int argc, char **argv)
       */
     //===========================================
 
+    // Засекаем время
+    startwtime = MPI_Wtime();
     //1. (a) Генерация субпопуляции (размер - size/p)
     genom* SubPopulation = new genom[mySize];
     for (int i=0; i<mySize; i++ )
@@ -295,7 +297,6 @@ int main(int argc, char **argv)
     	}
     	average[extIter] /= size/fraction;
 
-    	cout << extIter << " avg =  " << average[extIter] << "; best =  " << best[extIter] << endl;
     	//12. (m) Отправка результатов
     	position=0;
     	MPI_Pack_size (n*size/(fraction), MPI_DOUBLE,
@@ -318,11 +319,15 @@ int main(int argc, char **argv)
     }
     }
 
+    if (myid==0)
+    {
+    	endwtime = MPI_Wtime();
+    	printf("Work Time: %f\n", endwtime-startwtime);
     //Вывод статистики
     int step = tmax / 100;
     for(int t=0; t<tmax/dt; t++)
     		cout << t << " avg =  " << average[t] << "; best =  " << best[t] << endl;
-
+    }
     //Освобождение подсистемы MPI
 
     delete [] SubPopulation;

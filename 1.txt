@@ -1,0 +1,3 @@
+Process 0 of 1 is on djbelyak. My Size 4096.
+0 avg =  2351.6; best =  2166.63
+Work Time: 19.382186
